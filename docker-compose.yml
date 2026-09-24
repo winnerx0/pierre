@@ -1,0 +1,47 @@
+services:
+  minio:
+    image: cgr.dev/chainguard/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: supersecretpassword
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    restart: always
+  db:
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - pierre-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  rabbitmq:
+    image: rabbitmq:latest
+    ports:
+      - "5672:5672"
+      - "15672:15672" 
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbitmq
+      RABBITMQ_DEFAULT_PASS: rabbitmq
+    volumes:
+      - pierre-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+volumes:
+  minio-data:
+  pierre-data:
+  pierre-rabbitmq:

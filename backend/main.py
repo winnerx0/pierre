@@ -1,11 +1,21 @@
+import pickle
+
+import pika
 from fastapi import FastAPI
+from sqlalchemy.sql import insert
+from starlette.status import HTTP_202_ACCEPTED
 
 from db import database
 from db.schema import Media, Status
-from rabbitmq import connection
-from storage.minio import generate_presigned_url
+from queues.rabbitmq import connection
+from storage.s3 import generate_presigned_url
 
 app = FastAPI()
+
+
+@app.head("/")
+def read_root():
+    return None
 
 
 @app.get("/generate-presigned-url")
@@ -17,23 +27,41 @@ def basic():
         return {"status": "error", "message": str(e)}
 
 
-@app.post("/upload-webhook")
+@app.post("/upload-webhook", status_code=HTTP_202_ACCEPTED)
 def upload_webhook(event: dict):
 
     try:
         file_name = event["Records"][0]["s3"]["object"]["key"]
 
-        print(f"file: {file_name}")
+        file_size = event["Records"][0]["s3"]["object"]["size"]
+
+        content_type = event["Records"][0]["s3"]["object"]["contentType"]
+
+        print(f"file: {file_name}, size: {file_size}, content_type: {content_type}")
 
         client = database.get_db()
 
         db = next(client)
 
-        db.add(Media(name=file_name, status=Status.PENDING))
-        db.commit()
+        insert_stmt = (
+            insert(Media)
+            .values(
+                name=file_name,
+                size=file_size,
+                content_type=content_type,
+                status=Status.PENDING,
+            )
+            .returning(Media.id)
+        )
+        result = db.execute(insert_stmt)
+
+        row = result.fetchone()
 
         connection.channel().basic_publish(
-            exchange="", routing_key="videos", body=file_name
+            exchange="video_exchange",
+            routing_key="video",
+            body=pickle.dumps({"file_name": file_name, "id": row.id}),
+            properties=pika.BasicProperties(content_type="application/octet-stream"),
         )
 
         return {"status": "success"}

@@ -1,16 +1,4 @@
 services:
-  minio:
-    image: cgr.dev/chainguard/minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: supersecretpassword
-    volumes:
-      - minio-data:/data
-    command: server /data --console-address ":9001"
-    restart: always
   db:
     image: postgres:latest
     ports:
@@ -41,7 +29,35 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  rustfs:
+    image: rustfs/rustfs:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      RUSTFS_ACCESS_KEY: admin
+      RUSTFS_SECRET_KEY: password
+      RUSTFS_NOTIFY_ENABLE: true
+      RUSTFS_NOTIFY_WEBHOOK_ENABLE_PRIMARY: on
+      RUSTFS_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY: https://winnerx0.outray.app/upload-webhook
+      RUSTFS_NOTIFY_WEBHOOK_QUEUE_DIR_PRIMARY: /data/output
+      RUSTFS_OUTBOUND_ALLOW_ORIGINS: https://winnerx0.outray.app
+    volumes:
+      - pierre-rustfs:/data
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./backend:/app
+  #   depends_on:
+  #     - db
+  #     - rabbitmq
+  #     - rustfs
 volumes:
   minio-data:
   pierre-data:
   pierre-rabbitmq:
+  pierre-rustfs:
